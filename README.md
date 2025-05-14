@@ -40,6 +40,9 @@ Para executar os códigos:
    ```bash
    git clone https://github.com/PassosSouza/pyMatchXRD.git
    cd pyMatchXRD
+  ```
+2. Instalar dependencias
+  ```bash
    pip install numpy matplotlib pymatgen numba
    ```
 
