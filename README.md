@@ -34,7 +34,7 @@ Explore abordagens alternativas discutidas no relatório do projeto:
 
 ---
 
-## ⚙️ Instalação & Dependências  
+##  Instalação & Dependências  
 Para executar os códigos:  
 1. Clone o repositório:  
    ```bash
