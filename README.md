@@ -36,13 +36,10 @@ Explore abordagens alternativas discutidas no relatório do projeto:
 
 ##  Instalação & Dependências  
 Para executar os códigos:  
-1. Clone o repositório:  
+Clone o repositório e instalar dependencias:  
    ```bash
    git clone https://github.com/PassosSouza/pyMatchXRD.git
    cd pyMatchXRD
-  ```
-2. Instalar dependencias
-  ```bash
    pip install numpy matplotlib pymatgen numba
    ```
 
