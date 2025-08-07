@@ -10,13 +10,9 @@ This module provides tools for:
 import json
 import os
 import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import pandas as pd
-from matplotlib.gridspec import GridSpec
-from itertools import permutations
-import matplotlib as mpl
-import spglib
+from collections import defaultdict
+
 #from periodictable import elements
 
 #part for planes
@@ -24,13 +20,22 @@ from scipy.interpolate import griddata
 from scipy.spatial import KDTree
 
 # to make it prettier
-from typing import List, Tuple,Dict
+from typing import List, Tuple,Dict,Optional,Any,Union
 
 
 
 
-def xyzToabc(xyz, L, Gam):
-    """Convert Cartesian coordinates (xyz) to fractional coordinates (abc)."""
+def xyzToabc(xyz:List, L:List, Gam:List)-> np.array:
+    """Convert Cartesian coordinates (xyz) to fractional coordinates (abc).
+    
+    Args:
+        xyz: Cartesian coordinates as a numpy array of shape (3,)
+        L: Lattice parameters (a, b, c)
+        Gam: Lattice angles in degrees (alpha, beta, gamma)
+        
+    Returns:
+        Fractional coordinates as numpy array
+    """
     # Unpack lattice parameters and angles
     a, b, c = L  # Lattice parameters
     alpha, beta, gamma = np.radians(Gam)  # Angles in radians
@@ -50,8 +55,14 @@ def xyzToabc(xyz, L, Gam):
 
     return frac_coords
 
-def abcToxyz(r,L,Gam):
-    """Convert fractional coordinates to Cartesian coordinates."""
+def abcToxyz(r:List,L:List,Gam:List)->np.array:
+    """Convert fractional coordinates to Cartesian coordinates.
+    
+    Args:
+        r: Fractional coordinates [r1, r2, r3]
+        L: Lattice parameters (a, b, c)
+        Gam: Lattice angles in degrees (alpha, beta, gamma)
+    """
     a,b,c = L
     alph,beta,gamm = np.radians(Gam)
 
@@ -67,7 +78,7 @@ def abcToxyz(r,L,Gam):
 
     return a_v+b_vec+c_vec#<-- Mexi
 
-def a_b_c_(L,Gamm):
+def a_b_c_(L:List,Gamm:List)->Tuple[np.array,np.array,np.array]:
     """Calculate reciprocal lattice vectors."""
     V = abs( np.dot( abcToxyz([1,0,0],L,Gamm) , np.cross(abcToxyz([0,1,0],L,Gamm) ,abcToxyz([0,0,1],L,Gamm) ) )   )+1e-9
     V2 = abs( np.dot( abcToxyz([0,1,0],L,Gamm) , np.cross(abcToxyz([0,0,1],L,Gamm) ,abcToxyz([1,0,0],L,Gamm) ) )   )+1e-9
@@ -80,7 +91,7 @@ def a_b_c_(L,Gamm):
 
     return a_,b_,c_
 
-def a_b_c_frac(L,Gamm):
+def a_b_c_frac(L=1,Gamm=1):
     """Calculate reciprocal lattice vectors."""
     V = ( np.dot( [1,0,0] , np.cross([0,1,0] ,[0,0,1] ) )   )
 
@@ -90,7 +101,7 @@ def a_b_c_frac(L,Gamm):
 
     return a_,b_,c_
 
-def Ghkl(hkl,L,Gamm):
+def Ghkl(hkl:Tuple,L:List,Gamm:List)->float:
     """Calculate |G_hkl|^2 for given Miller indices."""
     h,k,l = hkl
     a_,b_,c_ = a_b_c_(L,Gamm)
@@ -107,7 +118,7 @@ def Ghkl_frac(hkl,L,Gamm):
     return np.dot(G_vector, G_vector)
 
 
-def POS(r, sym):
+def POS(r:List, sym:List[str])->List[List]:
     """
     Evaluates symmetry operations on a given position.
 
@@ -132,7 +143,7 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 #Import atomic form factors factors
 data = pd.read_csv(os.path.join(script_dir, "atomic_form_factors.txt"),sep=';')
 
-def get_symmetry_operations_number(number):
+def get_symmetry_operations_number(number:int)->Optional[List[str]]:
     # Load the JSON file
     with open(os.path.join(script_dir, 'symm_ops.json'), 'r') as file: 
         #File I saved from pymatgen, author: Katharina Ueltzen @kaueltzen
@@ -142,7 +153,7 @@ def get_symmetry_operations_number(number):
             return group['symops']
     return None
 
-def get_symmetry_operations(hermann_mauguin):
+def get_symmetry_operations(hermann_mauguin:str) -> Optional[List[str]]:
     # Load the JSON file
     with open(os.path.join(script_dir, 'symm_ops.json'), 'r') as file: 
         #File I saved from pymatgen, author: Katharina Ueltzen @kaueltzen
@@ -210,7 +221,7 @@ def INFOS_COD(name):
             pos = (pos.split(','))
             
 
-            Pos_atomS.append( [np.array(pos)[np.array(alocs) == "_atom_site_label"][0].replace("0","").replace("1","").replace("2","").replace("3","").replace("4","").replace("5","").replace("6",""),
+            Pos_atomS.append( [np.array(pos)[np.array(alocs) == "_atom_site_label"][0].replace("0","").replace("1","").replace("2","").replace("3","").replace("4","").replace("5","").replace("6","").replace("7","").replace("8","").replace("9","").replace("10","").replace("11","").replace("12","").replace("13","").replace("14","").replace("15","").replace("16","").replace("17","").replace("18","").replace("19","").replace("20",""),
                                float(np.array(pos)[np.array(alocs) == "_atom_site_fract_x"][0].replace("(","").replace(")","")),
                                float(np.array(pos)[np.array(alocs) == "_atom_site_fract_y"][0].replace("(","").replace(")","")),
                                float(np.array(pos)[np.array(alocs) == "_atom_site_fract_z"][0].replace("(","").replace(")",""))#,
@@ -247,35 +258,139 @@ def INFOS_COD(name):
             else:
                 syme = get_symmetry_operations(H_M[:-1])
 
-    Pos_atoms = []
-    #Occup = []
-
-
-    poS = [ [Pos_atomS[0][1],Pos_atomS[0][2],Pos_atomS[0][3]] ]
-    #occup = [[Pos_atomS[0][-1]]]
     
-    ATOMOS = [Pos_atomS[0][0][:]]
+    # Group positions by element in a list of lists
+    Pos_atoms_dict = defaultdict(list)
+    ATOMOS = []
     
-    for i in range(1,len(Pos_atomS)):
+    for atom in Pos_atomS:
+        symbol = atom[0]
+        if symbol not in Pos_atoms_dict:  # Maintain order of first appearance
+            ATOMOS.append(symbol)
+        Pos_atoms_dict[symbol].append(atom[1:4])  # Store x,y,z coordinates
+    
+    # Convert dictionary to list of lists in the same order as ATOMOS
+    Pos_atoms = [np.array(Pos_atoms_dict[symbol]) for symbol in ATOMOS]
+
+    return (np.array(unit_param), 
+            np.array(unit_angles), 
+            Pos_atoms,  # Now returns list of arrays instead of dictionary
+            syme, 
+            ATOMOS)
+#================ICSD==================================
+def INFOS_ICSD(name):
+    """
+    Extracts structural information from a file from COD.
+
+    Parameters:
+        name (str): The filename containing crystallographic data.
+
+    Returns:
+        tuple: A tuple containing:
+            - unit_param (list): Lattice parameters [a, b, c].
+            - unit_angles (list): Lattice angles [alpha, beta, gamma].
+            - Pos_atoms (list of lists): Atomic positions grouped by element.
+            - syme (list): List of symmetry operations.
+            - ATOMOS (list): List of atomic species.
+    """
+
+    with open(name, 'r') as file:
+        lines = file.readlines()
+
+    unit_param = []
+    unit_angles = []
+    syme = []
+    S = False
+    Pos_atomS = []
+    Atoms = False
+    H_M = []
+    alocs = []
+    u = 0
+    params = False
+
+    for idx,i in enumerate(lines):
+        #if i[0]=='#':
+        #    Atoms=False
         
-        if Pos_atomS[i][0] == Pos_atomS[i-1][0]:
-            poS.append( [Pos_atomS[i][1],Pos_atomS[i][2],Pos_atomS[i][3]] )
-            #---
-            #occup.append( [Pos_atomS[i][-1]] )
-        else:
-            Pos_atoms.append(poS)
-            ATOMOS.append(Pos_atomS[i][0][:])
-            poS = [ [Pos_atomS[i][1],Pos_atomS[i][2],Pos_atomS[i][3]] ]
-            #---
-            #Occup.append(occup)
-            #occup = [[Pos_atomS[i][-1]]]
+        #if (i == 'loop_\n') and (lines[idx+1].replace('\n','').replace(' ',"") != '_symmetry_equiv_pos_as_xyz') and (u==0) and (params):
+        if idx+1<len(lines):
+            if (i== 'loop_\n') and ( lines[idx+1].replace(' ','').replace('\n','')[-3:] != 'xyz' ) and (u==0) and (params):
+                if 'aniso' not in lines[idx+1].replace('\n','').replace(' ','').lower():
+                    if 'id' not in lines[idx+1].replace('\n','').replace(' ','').lower():
+                        if 'symbol' not in lines[idx+1].replace('\n','').replace(' ','').lower():
+                            S = True
+                            u+=1
+        
+        if (S) and (len(i.split(" ") )>1):
+            S =  False
+            Atoms = True
 
-    Pos_atoms.append(poS)
-    #--
-    #Occup.append(occup)
+        if S and ((i != 'loop_\n')):
+            alocs.append(i.replace(" ","").replace("\n",""))
 
-    return np.array(unit_param),np.array(unit_angles) , Pos_atoms , syme , ATOMOS#,Occup
+        if Atoms and len(i.split(" ")) == 1 and i !='loop_\n':
+            Atoms = False
 
+        if (Atoms) and (i!='loop_\n') and (idx !=len(lines)-1):
+            pos = i.replace(" ", ",").replace('\n','')
+            pos = (pos.split(','))
+            
+
+            Pos_atomS.append( [np.array(pos)[np.array(alocs) == "_atom_site_label"][0].replace("0","").replace("1","").replace("2","").replace("3","").replace("4","").replace("5","").replace("6",""),
+                               float(np.array(pos)[np.array(alocs) == "_atom_site_fract_x"][0].replace("(","").replace(")","")),
+                               float(np.array(pos)[np.array(alocs) == "_atom_site_fract_y"][0].replace("(","").replace(")","")),
+                               float(np.array(pos)[np.array(alocs) == "_atom_site_fract_z"][0].replace("(","").replace(")",""))#,
+                               #float(np.array(pos)[np.array(alocs) == "_atom_site_occupancy"][0].replace("(","").replace(")",""))
+                               ]  )
+        
+        pos = i.replace('\n','').replace('(',"").replace(")","")
+        pos = pos.replace(" ", ",")
+        pos = (pos.split(','))
+
+        if pos[0] == '_cell_length_a':
+            unit_param.append(float(pos[-1]))
+        if pos[0] == '_cell_length_b':
+            unit_param.append(float(pos[-1]))
+        if pos[0] == '_cell_length_c':
+            unit_param.append(float(pos[-1]))
+            params = True
+        if pos[0] == '_cell_angle_alpha':
+            unit_angles.append(float(pos[-1]))
+        if pos[0] == '_cell_angle_beta':
+            unit_angles.append(float(pos[-1]))
+        if pos[0] == '_cell_angle_gamma':
+            unit_angles.append(float(pos[-1]))
+        if pos[0].replace(' ','') == "_space_group_name_H-M_alt":
+            
+            nn = pos[1:]
+            H_M = ''
+            for idd in nn:
+                H_M+=idd.replace("'","") + " "
+            
+            if ':' in H_M:
+                syme = get_symmetry_operations(H_M[:-4])
+            else:
+                syme = get_symmetry_operations(H_M[:-1])
+
+    
+    # Group positions by element in a list of lists
+    Pos_atoms_dict = defaultdict(list)
+    ATOMOS = []
+    
+    for atom in Pos_atomS:
+        symbol = atom[0]
+        if symbol not in Pos_atoms_dict:  # Maintain order of first appearance
+            ATOMOS.append(symbol)
+        Pos_atoms_dict[symbol].append(atom[1:4])  # Store x,y,z coordinates
+    
+    # Convert dictionary to list of lists in the same order as ATOMOS
+    Pos_atoms = [np.array(Pos_atoms_dict[symbol]) for symbol in ATOMOS]
+
+    return (np.array(unit_param), 
+            np.array(unit_angles), 
+            Pos_atoms,  # Now returns list of arrays instead of dictionary
+            syme, 
+            ATOMOS)
 #==========================NUMBA===============================================================
 from numba import njit
 
@@ -319,7 +434,24 @@ def Ghkl_numba(hkl, L, Gam):
     return np.dot(G_vector, G_vector)
 
 @njit
-def generate_hkls(lamb, max_index, unit_params, unit_angles):
+def generate_hkls(lamb:float, max_index:int, unit_params:np.array, unit_angles:np.array
+                  )->Tuple[np.array,np.array,np.array,np.array]:
+    """
+    Generate HKL planes and calculate diffraction angles.
+    
+    Args:
+        lamb: Wavelength in Ångströms
+        max_index: Maximum Miller index to consider
+        unit_params: (a, b, c) lattice parameters
+        unit_angles: (alpha, beta, gamma) lattice angles in degrees
+        
+    Returns:
+        Tuple of:
+        - HKLS: Array of [h,k,l] indices
+        - Counts: Multiplicity of each reflection
+        - theta: Bragg angles (radians)
+        - Gs: |G|^2 values
+    """
     max_planes = (2 * max_index + 1) ** 3
     HKLS = np.empty((max_planes, 3), dtype=np.int32)
     Counts = np.zeros(max_planes, dtype=np.int32)
@@ -366,7 +498,7 @@ def generate_hkls(lamb, max_index, unit_params, unit_angles):
 #===================================================================================================
 
 
-def fhlk(Z,ai,bi,ci,thetas,lamb):
+def fhlk(Z:List,ai:List,bi:List,ci:List,thetas:List,lamb:float)->List:
     """
     used based on the cristallography book
     Calculate atomic scattering factor f(s) for an atom.
@@ -386,7 +518,7 @@ def fhlk(Z,ai,bi,ci,thetas,lamb):
 
     return f_all
 
-def fhlk2(Z,ai,bi,ci,thetas,lamb):
+def fhlk2(Z:List,ai:List,bi:List,ci:List,thetas:List,lamb:float)->List:
     """
     Calculate atomic scattering factor f(s) for an atom.
     
@@ -407,14 +539,15 @@ def fhlk2(Z,ai,bi,ci,thetas,lamb):
 
     return f_all    
 
-def Lp(theta):
+def Lp(theta:List)->np.array:
     """Calculate Lorentz polarization correction factor."""
     theta = np.radians(theta)
 
     return (1 + ( np.cos(2*theta) )**2 )/( np.sin(theta)**2 * np.cos(theta) )
 
 
-def FhklBTphkl(hkls, thetas, Pos, fs, lamb, L, Gamm, BT, counts):
+def FhklBTphkl(hkls:List, thetas:np.array, Pos:np.array, fs:List, lamb:float,
+                L:np.array, Gamm:np.array, BT:List, counts:np.array)->np.array:
     """
     Calculate structure factors F_hkl for all hkl planes.
     
@@ -476,7 +609,7 @@ c_1 = data['c'].values
 
 Z0 = data['Z'].values
 
-def associate_atomic_factor(Element):
+def associate_atomic_factor(Element:str)->Tuple[List,List,List,List]:
     a = []
     b = []
     c = []
@@ -505,8 +638,8 @@ def associate_atomic_factor(Element):
     return a,b,c,Z
 
 
-def simulate_xrd(lamb, max_index, unit_params, unit_angles , positions, 
-                Base_Atoms):
+def simulate_xrd(lamb:float, max_index:int, unit_params:np.array, unit_angles:np.array , positions:List, 
+                Base_Atoms:List) -> Dict:
     """
     Simulate XRD pattern for a crystal structure.
     
@@ -579,8 +712,8 @@ def simulate_xrd(lamb, max_index, unit_params, unit_angles , positions,
         'Zs':Zs
     }
 
-def Intensid_xrd(lamb, hkls,thetas,counts, unit_params, unit_angles , positions, 
-                Base_Atoms):
+def Intensid_xrd(lamb:float, hkls:List,thetas:List,counts:List, unit_params:np.array, unit_angles:np.array ,
+                  positions:List, Base_Atoms:List)->Dict:
     """
     Simulate XRD pattern for a crystal structure.
     
@@ -650,7 +783,7 @@ def Intensid_xrd(lamb, hkls,thetas,counts, unit_params, unit_angles , positions,
         'Zs':Zs
     }
 
-def Normalize(data, max=1):
+def Normalize(data:List, max=1)->List:
     # Check if it's a single list (not nested)
     if all(isinstance(i, (int, float)) for i in data):
         # Process the single list
@@ -666,7 +799,8 @@ def Normalize(data, max=1):
         ]
 
 
-def find_atoms_unit_cell(Pos_atoms, unit_params, unit_angles, Symmetry, units=[1, 1, 1], hex=False):
+def find_atoms_unit_cell(Pos_atoms:List, unit_params:List, unit_angles:List,
+                          Symmetry:List, units=[1, 1, 1], hex=False)->List:
     """
     Expands the unit cell to multiple repetitions along each axis.
 
@@ -753,10 +887,24 @@ def find_atoms_unit_cell(Pos_atoms, unit_params, unit_angles, Symmetry, units=[1
         POS_unit.append(list(unit_p_set))
 
     return primit,POS_unit,POS_tot
+# To plot only determined region on space
+def Deliminator( Pos , limitsx=[0,25],limitsy=[0,25],limitsz=[5,26]):
+    #Lets walk around the the list and see when we have points inside the region
+    POS = []
+
+    for i in range(len(Pos)):
+        ppos = []
+        for j in range(len(Pos[i])):
+            r = Pos[i][j]
+            if r[0]<=limitsx[1] and r[0]>=limitsx[0]:
+                if r[1]<=limitsy[1] and r[1]>=limitsy[0]:
+                    if r[2]<=limitsz[1] and r[2]>=limitsz[0]:
+                        ppos.append(r)
+        POS.append(ppos)
+    return POS
 
 
-
-#Para Plots
+# To do some beautiful plots
 def Plot_Planes(ax,vector,L,Gamm, num_planes = 1 , xs = [-1,5] , ys =[-1,5] , zs =[-0.5,21] ,color = 'red',alpha = 0.3):
     """
     Plots a plane perpendicular to a given vector in 3D space.
