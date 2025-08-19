@@ -905,7 +905,7 @@ def Deliminator( Pos , limitsx=[0,25],limitsy=[0,25],limitsz=[5,26]):
 
 
 # To do some beautiful plots
-def Plot_Planes(ax,vector,L,Gamm, num_planes = 1 , xs = [-1,5] , ys =[-1,5] , zs =[-0.5,21] ,color = 'red',alpha = 0.3):
+def Plot_Planes(ax,vector,L,Gamm, num_planes = 1 , xs = [-1,5] , ys =[-1,5] , zs =[-0.5,21] ,color = 'red',alpha = 0.3,PLOT_SURF=True):
     """
     Plots a plane perpendicular to a given vector in 3D space.
 
@@ -1097,8 +1097,8 @@ def Plot_Planes(ax,vector,L,Gamm, num_planes = 1 , xs = [-1,5] , ys =[-1,5] , zs
         y_masked = np.ma.masked_where(~combined_mask, y_)
         z_masked = np.ma.masked_where(~combined_mask, z_)
 
-
-        ax.plot_surface(x_masked,y_masked,z_masked , facecolor=color ,alpha = alpha, edgecolor = 'none')#color,linewidth=2)   
+        if PLOT_SURF:
+            ax.plot_surface(x_masked,y_masked,z_masked , facecolor=color ,alpha = alpha, edgecolor = 'none')#color,linewidth=2)   
         Xs.append(x_masked)
         Ys.append(y_masked)
         Zs.append(z_masked)
@@ -1228,3 +1228,24 @@ def UNIT_CELL_PLOT_HEXAGON(ax, L, Gamm, xyz=True):
         else:
             p1, p2 = vertices[edge[0]], vertices[edge[1]]
             ax.plot([p1[0], p2[0]], [p1[1], p2[1]], [p1[2], p2[2]], color='gray')
+
+# Convert Full list
+def ConvertToabc(pos,L,Gamm):
+
+    pos_abc = []
+    for i in range(len(pos)):
+        aa = []
+        for j in range(len(pos[i])):
+            aa.append( xyzToabc(pos[i][j], L,Gamm) )
+        pos_abc.append(aa)
+    return pos_abc
+
+def ConvertToxyz(pos,L,Gamm):
+
+    pos_xyz = []
+    for i in range(len(pos)):
+        aa = []
+        for j in range(len(pos[i])):
+            aa.append( abcToxyz(pos[i][j], L,Gamm) )
+        pos_xyz.append(aa)
+    return pos_xyz
