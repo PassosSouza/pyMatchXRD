@@ -7,34 +7,32 @@ This module provides tools for:
 - Miller plane calculations
 - Atomic position transformations
 """
+
 import json
 import os
 import numpy as np
 import pandas as pd
 from collections import defaultdict
 
-#from periodictable import elements
-
-#part for planes
 from scipy.interpolate import griddata
 from scipy.spatial import KDTree
 
-# to make it prettier
+# To make the functions pretier
 from typing import List, Tuple,Dict,Optional,Any,Union
 
 
 
 
-def xyzToabc(xyz:List, L:List, Gam:List)-> np.array:
+def xyzToabc(xyz:np.array, L:np.array, Gam:np.array)-> np.array:
     """Convert Cartesian coordinates (xyz) to fractional coordinates (abc).
     
     Args:
-        xyz: Cartesian coordinates as a numpy array of shape (3,)
-        L: Lattice parameters (a, b, c)
-        Gam: Lattice angles in degrees (alpha, beta, gamma)
+        xyz: Cartesian coordinates as a numpy array of shape (3,1).
+        L: Lattice parameters (a, b, c).
+        Gam: Lattice angles in degrees (alpha, beta, gamma).
         
     Returns:
-        Fractional coordinates as numpy array
+        Fractional coordinates as numpy array.
     """
     # Unpack lattice parameters and angles
     a, b, c = L  # Lattice parameters
@@ -55,17 +53,19 @@ def xyzToabc(xyz:List, L:List, Gam:List)-> np.array:
 
     return frac_coords
 
-def abcToxyz(r:List,L:List,Gam:List)->np.array:
+def abcToxyz(r:np.array,L:np.array,Gam:np.array)->np.array:
     """Convert fractional coordinates to Cartesian coordinates.
     
     Args:
-        r: Fractional coordinates [r1, r2, r3]
-        L: Lattice parameters (a, b, c)
-        Gam: Lattice angles in degrees (alpha, beta, gamma)
+        r: Fractional coordinates [r1, r2, r3].
+        L: Lattice parameters (a, b, c).
+        Gam: Lattice angles in degrees (alpha, beta, gamma).
+        
+    Returns:
+        Cartesians coordinates as numpy array.
     """
     a,b,c = L
     alph,beta,gamm = np.radians(Gam)
-
 
     a_v = r[0]*a*np.array([1,0,0])
     b_vec = r[1]*b*np.array([np.cos(gamm),np.sin(gamm),0  ])
@@ -76,10 +76,20 @@ def abcToxyz(r:List,L:List,Gam:List)->np.array:
 
     c_vec = r[2]*c*np.array([c_x,c_y,c_z ])
 
-    return a_v+b_vec+c_vec#<-- Mexi
+    return a_v+b_vec+c_vec
 
 def a_b_c_(L:List,Gamm:List)->Tuple[np.array,np.array,np.array]:
-    """Calculate reciprocal lattice vectors."""
+    """Calculate reciprocal lattice vectors a*,b*,c* in cartesian coordinates
+    
+    Args:
+        L: Lattice parameters (a, b, c).
+        Gam: Lattice angles in degrees (alpha, beta, gamma).
+
+    Returns:
+        Vectors of the reciprocal space a*,b*,c* in cartesian coordinates.
+    
+    """
+    #V, V2 and V3 must be equal
     V = abs( np.dot( abcToxyz([1,0,0],L,Gamm) , np.cross(abcToxyz([0,1,0],L,Gamm) ,abcToxyz([0,0,1],L,Gamm) ) )   )+1e-9
     V2 = abs( np.dot( abcToxyz([0,1,0],L,Gamm) , np.cross(abcToxyz([0,0,1],L,Gamm) ,abcToxyz([1,0,0],L,Gamm) ) )   )+1e-9
     V3 = abs( np.dot( abcToxyz([0,0,1],L,Gamm) , np.cross(abcToxyz([1,0,0],L,Gamm) ,abcToxyz([0,1,0],L,Gamm) ) )   )+1e-9
@@ -92,7 +102,15 @@ def a_b_c_(L:List,Gamm:List)->Tuple[np.array,np.array,np.array]:
     return a_,b_,c_
 
 def a_b_c_frac(L=1,Gamm=1):
-    """Calculate reciprocal lattice vectors."""
+    """Calculate reciprocal lattice vectors a*,b*,c* in fractional coordiantes
+    
+    Args:
+        L: Lattice parameters (a, b, c).
+        Gam: Lattice angles in degrees (alpha, beta, gamma).
+
+    Returns:
+        Vectors of the reciprocal space a*,b*,c* in fractional coordinates.
+    """
     V = ( np.dot( [1,0,0] , np.cross([0,1,0] ,[0,0,1] ) )   )
 
     a_ = np.cross( [0,1,0] ,[0,0,1] ) / V
@@ -102,15 +120,37 @@ def a_b_c_frac(L=1,Gamm=1):
     return a_,b_,c_
 
 def Ghkl(hkl:Tuple,L:List,Gamm:List)->float:
-    """Calculate |G_hkl|^2 for given Miller indices."""
+    """Calculate |G_hkl|^2 for given Miller indices in cartesian coordiantes
+        G is defined as a vector in the reciprocal space giving by
+        G = h . a* + k . b* + l . c*
+
+    Args:
+        hkl: the value of the miller index (h, k, l).
+        L: Lattice parameters (a, b, c).
+        Gam: Lattice angles in degrees (alpha, beta, gamma).
+
+    Returns:
+        Module of the vector G_hkl in cartesian coordiantes.
+    """
     h,k,l = hkl
     a_,b_,c_ = a_b_c_(L,Gamm)
 
     G_vector = h * a_ + k * b_ + l * c_
     return np.dot(G_vector, G_vector)
 
-def Ghkl_frac(hkl,L,Gamm):
-    """Calculate |G_hkl|^2 for given Miller indices."""
+def Ghkl_frac(hkl: tuple ,L: np.array ,Gamm: np.array) -> float: 
+    """Calculate |G_hkl|^2 for given Miller indices in fractional coordiantes
+        G is defined as a vector in the reciprocal space giving by
+        G = h . a* + k . b* + l . c*
+
+    Args:
+        hkl: the value of the miller index (h, k, l).
+        L: Lattice parameters (a, b, c).
+        Gam: Lattice angles in degrees (alpha, beta, gamma).
+
+    Returns:
+        Module of the vector G_hkl in fractional coordinates.
+    """
     h,k,l = hkl
     a_,b_,c_ = a_b_c_frac(L,Gamm)
 
@@ -118,13 +158,129 @@ def Ghkl_frac(hkl,L,Gamm):
     return np.dot(G_vector, G_vector)
 
 
-def POS(r:List, sym:List[str])->List[List]:
-    """
-    Evaluates symmetry operations on a given position.
+# ======
+# USE NUMBA TO MAKE HKL CALCULATION FASTER
+# ======
+from numba import njit
 
-    Parameters:
+
+# All the functions defined before, but in numba
+@njit
+def abcToxyz_numba(r, L, Gam):
+    a, b, c = (L)
+    alph, beta, gamm = ((Gam))*np.pi/180
+
+    a_v = r[0] * a * np.array([1.0, 0.0, 0.0])
+    b_vec = r[1] * b * np.array([np.cos(gamm), np.sin(gamm), 0.0])
+
+    c_x = np.cos(alph)
+    c_y = (np.cos(beta) - np.cos(alph) * np.cos(gamm)) / np.sin(gamm)
+    c_z = np.sqrt(max(0.0, 1.0 - c_x**2 - c_y**2))
+
+    c_vec = r[2] * c * np.array([c_x, c_y, c_z])
+
+    return a_v + b_vec + c_vec
+
+@njit
+def a_b_c_numba(L, Gam):
+    a_vec = abcToxyz_numba(np.array([1.0, 0.0, 0.0]), L, Gam)
+    b_vec = abcToxyz_numba(np.array([0.0, 1.0, 0.0]), L, Gam)
+    c_vec = abcToxyz_numba(np.array([0.0, 0.0, 1.0]), L, Gam)
+
+    V = np.abs(np.dot(a_vec, np.cross(b_vec, c_vec))) + 1e-9
+    V2 = np.abs(np.dot(b_vec, np.cross(c_vec, a_vec)))+ 1e-9
+    V3 = np.abs(np.dot(c_vec, np.cross(a_vec, b_vec)))+ 1e-9
+
+    a_ = np.cross(b_vec, c_vec) / V
+    b_ = np.cross(c_vec, a_vec) / V2
+    c_ = np.cross(a_vec, b_vec) / V3
+
+    return a_, b_, c_
+
+@njit
+def Ghkl_numba(hkl, L, Gam):
+    h, k, l = hkl
+    a_, b_, c_ = a_b_c_numba(L, Gam)
+    G_vector = h * a_ + k * b_ + l * c_
+    return np.dot(G_vector, G_vector)
+
+# MOST IMPORTANT FUNCTION IN THIS PART
+@njit
+def generate_hkls(lamb:float, max_index:int, unit_params:np.array, unit_angles:np.array
+                  )->Tuple[np.array,np.array,np.array,np.array]:
+    """Generate HKL planes and calculate diffraction angles for each peak.
+    
+    Args:
+        lamb: Wavelength in Ångströms
+        max_index: Maximum Miller index to consider
+        unit_params: (a, b, c) lattice parameters
+        unit_angles: (alpha, beta, gamma) lattice angles in degrees
+        
+    Returns:
+        Tuple of:
+        - HKLS: Array of [h,k,l] indices
+        - Counts: Multiplicity of each reflection
+        - theta: Bragg angles (radians)
+        - Gs: |G|^2 values
+    """
+    max_planes = (2 * max_index + 1) ** 3
+    HKLS = np.empty((max_planes, 3), dtype=np.int32)
+    Counts = np.zeros(max_planes, dtype=np.int32)
+    theta = np.zeros(max_planes)
+    Gs = np.zeros(max_planes)
+
+    counter = 0
+    for h in range(-max_index, max_index + 1):
+        for k in range(-max_index, max_index + 1):
+            for l in range(-max_index, max_index + 1):
+                # Take out non existent plane
+                if h == 0 and k == 0 and l == 0:
+                    continue
+                # Define the value used in the Bragg's Law
+                G_ = Ghkl_numba((h, k, l), unit_params, unit_angles)
+                G = np.sqrt(np.abs(G_))
+                # Use of Bragg's Law to find the angles
+                # sin(theta) = lamb / (2 . d),
+                # where d = 1 / G
+                sintheta = lamb * G / 2
+                if sintheta >= 1:
+                    continue
+                
+                angle_2theta = 2 * np.degrees(np.arcsin(sintheta))
+                if angle_2theta < 3:
+                    continue
+
+                already_stored = False
+                for i in range(counter):
+                    if np.abs(theta[i] * 2 - angle_2theta) < 0.01:
+                        Counts[i] += 1
+                        if np.abs(h) + np.abs(k) + np.abs(l) < np.abs(HKLS[i][0]) + np.abs(HKLS[i][1]) + np.abs(HKLS[i][2]):
+                            HKLS[i][0], HKLS[i][1], HKLS[i][2] = h, k, l
+                        already_stored = True
+                        break
+
+                if not already_stored:
+                    HKLS[counter][0] = h
+                    HKLS[counter][1] = k
+                    HKLS[counter][2] = l
+                    Counts[counter] = 1
+                    theta[counter] = angle_2theta / 2
+                    Gs[counter] = G_
+                    counter += 1
+
+    return HKLS[:counter], Counts[:counter], theta[:counter], Gs[:counter]
+
+
+# =======
+# Functions to apply and get symmetries giving a group symmetry
+# =======
+
+def POS(r:List, sym:List[str])->List[List]:
+    """Evaluates symmetry operations on a given position.
+
+    Args:
         r (list): A list of three coordinates [x, y, z].
-        sym (list): A list of symmetry operation expressions as strings.
+        sym (list): A list of symmetry operation expressions as strings, example [(x,y,z),(x+1/2,y,z), ... ].
 
     Returns:
         list: A list of transformed positions based on symmetry operations.
@@ -136,14 +292,16 @@ def POS(r:List, sym:List[str])->List[List]:
 
     return Pos
 
-
-# Get the directory of the current script
-script_dir = os.path.dirname(os.path.abspath(__file__))
-
-#Import atomic form factors factors
-data = pd.read_csv(os.path.join(script_dir, "atomic_form_factors.txt"),sep=';')
-
 def get_symmetry_operations_number(number:int)->Optional[List[str]]:
+    """Take symmetry list giving the symmetry group number
+
+    Args:
+        number: Symmetry group number.
+
+    Returns:
+        list of operations to make in fractional coordinates.
+    """
+
     # Load the JSON file
     with open(os.path.join(script_dir, 'symm_ops.json'), 'r') as file: 
         #File I saved from pymatgen, author: Katharina Ueltzen @kaueltzen
@@ -154,6 +312,15 @@ def get_symmetry_operations_number(number:int)->Optional[List[str]]:
     return None
 
 def get_symmetry_operations(hermann_mauguin:str) -> Optional[List[str]]:
+    """Take symmetry list giving the hermann_mauguin symbol
+
+    Args:
+        number: Hermann_mauguin symbol.
+
+    Returns:
+        list of operations to make in fractional coordinates.
+    """
+
     # Load the JSON file
     with open(os.path.join(script_dir, 'symm_ops.json'), 'r') as file: 
         #File I saved from pymatgen, author: Katharina Ueltzen @kaueltzen
@@ -162,6 +329,453 @@ def get_symmetry_operations(hermann_mauguin:str) -> Optional[List[str]]:
         if group['hermann_mauguin'] == hermann_mauguin:
             return group['symops']
     return None
+
+
+
+# ======
+# FUNCTIONS TO USE IN THE STRUCTURE FACTOR
+# ======
+
+#This function is not used because the other one I have all Elements values
+def fhlk(Z:List,ai:List,bi:List,ci:List,thetas:np.array,lamb:float)->List:
+    """Calculate atomic scattering factor f(s) for an atom for each angle (hkl).
+    used based on the cristallography book
+    
+    f(s) = Z - 41.78214 . s^2 * sum(a_i . exp(-b_i . s^2)) + c
+    
+    where s = sin(theta)/lambda = |G|/2
+
+    Args:
+        Z: Atomic mass of the element (in atomic mass).
+        ai: Each of the 'a_i' coefficients giving an element.
+        bi: Each of the 'b_i' coefficients giving an element.
+        ci: Each of the 'c_i' coefficients giving an element.
+        thetas: Angles of the peaks presented, in degrees (each representing an hkl).
+        lamb: The wavvelenght of the source in Angostrom.
+
+    Returns:
+        List of atomic form factor for each theta.
+    """
+    f_all = []
+    s2 = (np.sin(np.radians(thetas))/lamb )**2#Gs/(2)**2
+
+    for i in range(len(ai)):
+        f0 = 0 
+        for j in range(len(ai[i])):
+            f0 = f0 + ai[i][j]*np.exp( - bi[i][j] * (s2) )
+        f_all.append(Z[i] - 41.78214 * (s2) * f0  + ci[i])
+
+    return f_all
+
+def fhlk2(Z:List,ai:List,bi:List,ci:List,thetas:np.array,lamb:float)->List:
+    """Calculate atomic scattering factor f(s) for an atom for each angle (hkl).
+    
+    f(s) = sum(a_i . exp(-b_i . s^2)) + c
+    
+    where s = sin(theta)/lambda = |G|/2
+
+    Args:
+        Z: Atomic mass of the element (in atomic mass).
+        ai: Each of the 'a_i' coefficients giving an element.
+        bi: Each of the 'b_i' coefficients giving an element.
+        ci: Each of the 'c_i' coefficients giving an element.
+        thetas: Angles of the peaks presented, in degrees (each representing an hkl).
+        lamb: The wavvelenght of the source in Angostrom.
+
+    Returns:
+        List of atomic form factor for each theta.
+    """
+    f_all = []
+    s2 = (np.sin(np.radians(thetas))/lamb )**2 #Gs/(2)**2
+
+    for i in range(len(ai)):
+        f0 = 0 
+        for j in range(len(ai[i])):
+            f0 = f0 + ai[i][j]*np.exp( - bi[i][j] * (s2) )
+        f_all.append( f0  + ci[i])
+
+    return f_all    
+
+def Lp(theta:List)->np.array:
+    """Calculate Lorentz polarization correction factor.
+    
+    Args:
+        theta: Angles in degrees used.
+
+    Returns:
+        The Lorentz polarization correction factor for each angle in an array.
+    """
+    theta = np.radians(theta)
+
+    return (1 + ( np.cos(2*theta) )**2 )/( np.sin(theta)**2 * np.cos(theta) )
+
+
+def FhklBTphkl(hkls:List, thetas:np.array, Pos:np.array, fs:List, lamb:float,
+                L:np.array, Gamm:np.array, BT:List)->np.array:
+    """
+    Calculate structure factors F_hkl for all hkl planes, giving the formula
+
+    F(hkl) = sum_j f_j(hkl) . exp( 2 . pi . i . ( r_vec . G_vec ) ),
+    
+    sum over all atoms (j = 1,..,N), for each angle.
+    
+    Args:
+        hkls: Array of Miller indices (h,k,l)
+        thetas: Scattering angles for each hkl
+        Pos: List of atomic positions (fractional coordinates)
+        Z: Atomic numbers
+        fs: Atomic form factor for each element.
+        lamb: Wavelength
+        L: Unit cell parameters [a, b, c]
+        Gamm: Unit cell angles [alpha, beta, gamma]
+        BT: Debye-Waller factors for each atom (Not used)
+        
+    Returns:
+        Complex array of structure factors
+    """
+    F_all = [] #np.zeros(len(hkls), dtype=complex)
+    a_,b_,c_ = a_b_c_(L,Gamm)
+
+
+    for k in range(len(hkls)):
+        F = 0 + 0j
+
+        G_vector = hkls[k][0]*a_ + hkls[k][1]*b_ + hkls[k][2]*c_
+
+        s2 = (np.sin(np.radians(thetas[k]))/lamb )**2 #Gs[k]/(2)**2
+        
+        for i in range(len(Pos)):
+            Debye = (np.exp(-BT[i]* ( s2 ) ) )
+
+            for j in range(len(Pos[i])):
+
+                F += fs[i][k] * np.exp( 2j*np.pi  * ( np.dot( (Pos[i][j]) , G_vector ) ) ) #* Debye
+                
+        F_all.append( (F) ) 
+
+    return np.array(F_all) 
+
+
+# ======
+# IMPORT DATA TO USE IN atomic form factors COEFFICIENTS 
+# ======
+# Get the directory of the current script
+script_dir = os.path.dirname(os.path.abspath(__file__))
+#Import atomic form factors factors
+data = pd.read_csv(os.path.join(script_dir, "atomic_form_factors.txt"),sep=';')
+#data = pd.read_csv(os.path.join(script_dir, "book_atomic_form_factors.txt"),sep=';') #Coefficients from a book that is not gonna be used
+Elements = data['Element']
+a_1 = data['a1'].values
+a_2 = data['a2'].values
+a_3 = data['a3'].values
+a_4 = data['a4'].values
+b_1 = data['b1'].values
+b_2 = data['b2'].values
+b_3 = data['b3'].values
+b_4 = data['b4'].values
+c_1 = data['c'].values
+Z0 = data['Z'].values
+
+def associate_atomic_factor(Element:str)->Tuple[List,List,List,List]:
+    """Giving an Element give the coefficients to calculate the atomic form factor.
+
+    Args:
+        Element: Element used (Ti, Ta , ...).
+
+    Returns:
+        Tuple of coefficients used in fhkl function.
+    """
+    a = []
+    b = []
+    c = []
+    Z = []
+    for i in Element:
+        g = ((Elements==i))
+
+        a_ = []
+        a_.append(a_1[g][0])
+        a_.append(a_2[g][0])
+        a_.append(a_3[g][0])
+        a_.append(a_4[g][0])
+        a.append(a_)
+
+        b_ = []
+        b_.append(b_1[g][0])
+        b_.append(b_2[g][0])
+        b_.append(b_3[g][0])
+        b_.append(b_4[g][0])
+        b.append(b_)
+
+        c.append(c_1[g][0])
+
+        Z.append(Z0[g][0])
+
+    return a,b,c,Z
+
+
+def simulate_xrd(lamb:float, max_index:int, unit_params:np.array, unit_angles:np.array , positions:List, 
+                Base_Atoms:List) -> Dict:
+    """Calculate XRD pattern for a crystal structure (It is not a simulation, the name is misleading).
+    
+    Args:
+        lamb: Wavelength in angstroms.
+        max_index: Maximum Miller index to consider.
+        unit_params: [a, b, c] in angstroms.
+        unit_angles: [alpha, beta, gamma] in degrees.
+        positions: List of atomic positions (fractional coordinates).
+        Base_Atoms: List of Atoms used.
+        
+    Returns:
+        Dictionary with XRD pattern data:
+        {
+            'hkls': Miller indices,
+            'two_thetas': Diffraction angles,
+            'intensities': Calculated intensities,
+            'Gs': reciprocal distances,
+            'multiplicities': Multiplicity factors
+        }
+    """
+
+    # Calculate atomic factors
+    a_coeffs,b_coeffs,c_coeffs,Zs = associate_atomic_factor(Base_Atoms)
+    #import Debyw Waller Factors (Not really used because change almost nothing)
+    data = pd.read_csv(os.path.join(script_dir, "Debye_Waller_factor.txt"),sep=';')  
+    ElementsB = data['Element']
+    BT = data['B (A)'].values
+    B_factors = [BT[ElementsB == i][0] for i in Base_Atoms]
+
+    # Generate possible hkl planes
+    hkls, counts, thetas, Gs = generate_hkls(lamb, max_index, (unit_params), (unit_angles)) #<--- edited here
+    fs = fhlk2(Zs,a_coeffs,b_coeffs,c_coeffs,thetas,lamb)
+    
+    # Calculate structure factors
+    F_hkls = FhklBTphkl(hkls , thetas , positions , fs,lamb , unit_params, unit_angles,B_factors )
+    
+    # Calculate intensities
+    intensities = np.abs(F_hkls)**2*Lp(thetas)*counts 
+    
+    # Normalize to maximum intensity of 1
+    if len(intensities) == 0:
+        return {
+        'hkls': [],#[mask],
+        'two_thetas': [],#[mask],
+        'FsB': [],#[mask],
+        'intensities': [],#[mask],
+        'G': [],#[mask]), #d = 1 / Gs
+        'multiplicities': [],#[mask],
+        'Lp':[],#[mask]),
+        'fhkls':[],
+        'Zs':[]
+        }
+
+    intensities = 100 * intensities / (np.max(intensities)+1e-10 )
+
+    return {
+        'hkls': hkls[intensities >=2],#[mask],
+        'two_thetas': 2*np.array(thetas)[intensities >=2],#[mask],
+        'FsB':F_hkls[intensities >=2],#[mask],
+        'intensities': intensities[intensities >=2],#[mask],
+        'G': np.sqrt(Gs[intensities >=2]),#[mask]), #d = 1 / Gs
+        'multiplicities': counts[intensities >=2],#[mask],
+        'Lp':Lp(thetas[intensities >=2]),#[mask]),
+        'fhkls':fs,
+        'Zs':Zs
+    }
+
+def Intensid_xrd(lamb:float, hkls:List,thetas:List,counts:List, unit_params:np.array, unit_angles:np.array ,
+                  positions:List, Base_Atoms:List)->Dict:
+    """Calculate the XRD pattern for a crystal structure giving the peaks.
+    
+    Args:
+        lamb: Wavelength in angstroms.
+        hkls: The Miller indice for each angle of peak.
+        thetas: The theta angles for each hkl indice.
+        counts: The multiplitiplicity of each peak.
+        max_index: Maximum Miller index to consider.
+        unit_params: [a, b, c] in angstroms.
+        unit_angles: [alpha, beta, gamma] in degrees.
+        positions: List of atomic positions (fractional coordinates).
+        Base_Atoms: List of Atoms used.
+        
+    Returns:
+        Dictionary with XRD pattern data:
+        {
+            'hkls': Miller indices,
+            'two_thetas': Diffraction angles,
+            'intensities': Calculated intensities,
+            'Gs': reciprocal distances,
+            'multiplicities': Multiplicity factors
+        }
+    """
+
+    # Calculate atomic factors
+    a_coeffs,b_coeffs,c_coeffs,Zs = associate_atomic_factor(Base_Atoms)
+
+    #import Debyw Waller Factors
+    data = pd.read_csv(os.path.join(script_dir, "Debye_Waller_factor.txt"),sep=';')
+    ElementsB = data['Element']
+    BT = data['B (A)'].values
+    B_factors = [BT[ElementsB == i][0] for i in Base_Atoms]
+    # Generate possible hkl planes
+    fs = fhlk2(Zs,a_coeffs,b_coeffs,c_coeffs,thetas,lamb)
+    
+    # Calculate structure factors
+    F_hkls = FhklBTphkl(hkls , thetas , positions , fs,lamb , unit_params, unit_angles,B_factors)
+    
+    # Calculate intensities
+    intensities = np.abs(F_hkls)**2*Lp(thetas)*counts 
+    
+    # Normalize to maximum intensity of 1
+    if len(intensities) == 0 or np.max(intensities)==0:
+        return {
+        'hkls': [],#[mask],
+        'two_thetas': [],#[mask],
+        'FsB': [],#[mask],
+        'intensities': [],#[mask],
+        'multiplicities': [],#[mask],
+        'Lp':[],#[mask]),
+        'fhkls':[],
+        'Zs':[]
+        }
+
+    intensities = 100 * intensities / (np.max(intensities)+1e-10)
+
+    
+    return {
+        'hkls': hkls[intensities >=2],#[mask],
+        'two_thetas': 2*thetas[intensities >=2],#[mask],
+        'FsB':F_hkls[intensities >=2],#[mask],
+        'intensities': intensities[intensities >=2],#[mask],
+        'multiplicities': counts[intensities >=2],#[mask],
+        'Lp':Lp(thetas[intensities >=2]),#[mask]),
+        'fhkls':fs,
+        'Zs':Zs
+    }
+
+
+# ======
+# FUNCTIONS TO DEFINE THE ATOMS POSITIONS
+# ======
+
+def Normalize(data:List, max=1)->List:
+    """Function simmetrize positions so that all atoms are inside of the unit cell
+
+    Args:
+        data: array of positions [x,y,z] or multiple positions
+        max: upper limit each position could be inside of
+
+    Returns:
+        Array with the positions inside of the limit box space
+    """
+    # Check if it's a single list (not nested)
+    if all(isinstance(i, (int, float)) for i in data):
+        # Process the single list
+        return [
+            x - max if x > max else (x + 1 if x < 0 else x)
+            for x in data
+        ]
+    else:
+        # Process each sublist in the nested list
+        return [
+            [x - max if x > max else (x + 1 if x < 0 else x) for x in sublist]
+            for sublist in data
+        ]
+
+
+def find_atoms_unit_cell(Pos_atoms:List, unit_params:List, unit_angles:List,
+                          Symmetry:List, units=[1, 1, 1], hex=False)->List:
+    """Expands the wyckoff positions to the primit unit cell, unit cell and total atom positions.
+
+    Args:
+        Pos_atoms: List of wyckoff positions in fractional coordinates.
+        unit_params: Unit cell lenghts (a, b, c).
+        unit_angles: Unit cell angles angles (alpha, beta, gamma) in degrees.
+        Symmetry: List of symmetry operations.
+        units: Number of unit cells along [x, y, z]. Default is [1,1,1].
+        hex: If True, applies a specific hexagonal expansion.
+
+    Returns:
+        tuple: (POS_unit, POS_tot) - Atomic positions expanded within the unit cell and full expanded positions all in cartesian coordinates.
+    """
+
+    # Step 1: Apply symmetry operations and normalize atomic positions
+    POS_primit = [
+        list({tuple(np.round(h, 3)) for pos in atom_list for h in (POS(pos, Symmetry))})
+        for atom_list in Pos_atoms
+    ]
+
+    # Define an array where we apply each and all the symmetries to get the primit positions
+    ppos_primit = [
+        [ h
+            for pos in atom_list
+            for h in POS(pos, Symmetry)
+        ]  for atom_list in Pos_atoms    ]
+    # Ensure that we only have the positions inside of the unit cell, not containing the extremes
+    # Also pass the positions to cartesians coordinates
+    primit = []
+    for i in range(len(ppos_primit)):
+        pp = []
+        verif = []
+        for j in range(len(ppos_primit[i])):
+            vec = Normalize(ppos_primit[i][j])
+            if 0 <= vec[0] < 1 and 0 <= vec[1] < 1 and 0 <= vec[2] < 1:
+                cart = tuple(np.round(abcToxyz(vec, unit_params, unit_angles) ,2))
+                if cart not in verif:
+                    verif.append(cart)
+                    pp.append(abcToxyz(vec, unit_params, unit_angles))
+        primit.append(pp)
+
+
+    # Step 2: Define unit cell boundaries and displacement vectors
+    if hex:
+        a, b, c = units
+        vertices = np.array([
+            [ a/2, -b/2 * np.sqrt(3), 0], [ a, 0, 0], [ a/2, b/2 * np.sqrt(3), 0],
+            [-a/2, b/2 * np.sqrt(3), 0], [-a, 0, 0], [-a/2, -b/2 * np.sqrt(3), 0],
+            [ a/2, -b/2 * np.sqrt(3), c], [ a, 0, c], [ a/2, b/2 * np.sqrt(3), c],
+            [-a/2, b/2 * np.sqrt(3), c], [-a, 0, c], [-a/2, -b/2 * np.sqrt(3), c]
+        ])
+        x_min, y_min, z_min = np.min(vertices, axis=0)
+        x0_min,y0_min,z0_min = x_min,y_min,z_min
+        x_max, y_max, z_max = np.max(vertices, axis=0)
+        x0_max,y0_max,z0_max = x_max,y_max,z_max
+        d = np.array([[dx, dy, dz] for dx in range(-a, a+1) for dy in range(-b, b+1) for dz in range(-c, c+1)])
+    else:
+        x_min, y_min, z_min, x_max, y_max, z_max = 0, 0, 0, units[0], units[1], units[2]
+        x0_min, y0_min, z0_min = 0, 0, 0
+        x0_max, y0_max, z0_max = 1, 1, 1
+        d = np.array([[dx, dy, dz] for dx in range(x_min,units[0]+1) for dy in range(y_min,units[1]+1) for dz in range(z_min,units[2]+1)])
+
+    # Step 3: Expand atomic positions across unit cells
+    POS_tot, POS_unit = [], []
+    
+    for i in range(len(POS_primit)):
+        # Use sets to store unique atomic positions
+        tot_p_set = set()
+        unit_p_set = set()
+
+        for v in d:
+            for j in range(len(POS_primit[i])):
+                r_r = np.array(POS_primit[i][j]) + np.array(v)  # Shift atomic position
+
+                if x_min <= r_r[0] <= x_max and y_min <= r_r[1] <= y_max and z_min <= r_r[2] <= z_max:
+                    aa = tuple(np.round(abcToxyz(r_r, unit_params, unit_angles), 3))  # Convert to tuple
+
+                    tot_p_set.add(aa)  # Set automatically removes duplicates
+
+                    if x0_min <= r_r[0] <= x0_max and y0_min <= r_r[1] <= y0_max and z0_min <= r_r[2] <= z0_max:
+                        unit_p_set.add(aa)
+
+        # Convert sets back to lists
+        POS_tot.append(list(tot_p_set))
+        POS_unit.append(list(unit_p_set))
+
+    return primit,POS_unit,POS_tot
+
+# =======
+# Functions to import structure from CIF file
+# we could maybe use the python package PyCifRW
+# ======
 
 def INFOS_COD(name):
     """
@@ -277,7 +891,8 @@ def INFOS_COD(name):
             Pos_atoms,  # Now returns list of arrays instead of dictionary
             syme, 
             ATOMOS)
-#================ICSD==================================
+
+# The same code but for ICSD files
 def INFOS_ICSD(name):
     """
     Extracts structural information from a file from COD.
@@ -391,504 +1006,27 @@ def INFOS_ICSD(name):
             Pos_atoms,  # Now returns list of arrays instead of dictionary
             syme, 
             ATOMOS)
-#==========================NUMBA===============================================================
-from numba import njit
 
-@njit
-def abcToxyz_numba(r, L, Gam):
-    a, b, c = (L)#np.array(L)
-    alph, beta, gamm = ((Gam))*np.pi/180#np.radians(np.array(Gam))
 
-    a_v = r[0] * a * np.array([1.0, 0.0, 0.0])
-    b_vec = r[1] * b * np.array([np.cos(gamm), np.sin(gamm), 0.0])
 
-    c_x = np.cos(alph)
-    c_y = (np.cos(beta) - np.cos(alph) * np.cos(gamm)) / np.sin(gamm)
-    c_z = np.sqrt(max(0.0, 1.0 - c_x**2 - c_y**2))
+# =======
+# FUNCTONS TO HELP PLOT THE STRUCTURE
+# ======
 
-    c_vec = r[2] * c * np.array([c_x, c_y, c_z])
 
-    return a_v + b_vec + c_vec
-
-@njit
-def a_b_c_numba(L, Gam):
-    a_vec = abcToxyz_numba(np.array([1.0, 0.0, 0.0]), L, Gam)
-    b_vec = abcToxyz_numba(np.array([0.0, 1.0, 0.0]), L, Gam)
-    c_vec = abcToxyz_numba(np.array([0.0, 0.0, 1.0]), L, Gam)
-
-    V = np.abs(np.dot(a_vec, np.cross(b_vec, c_vec))) + 1e-9
-    V2 = np.abs(np.dot(b_vec, np.cross(c_vec, a_vec)))+ 1e-9
-    V3 = np.abs(np.dot(c_vec, np.cross(a_vec, b_vec)))+ 1e-9
-
-    a_ = np.cross(b_vec, c_vec) / V
-    b_ = np.cross(c_vec, a_vec) / V2
-    c_ = np.cross(a_vec, b_vec) / V3
-
-    return a_, b_, c_
-
-@njit
-def Ghkl_numba(hkl, L, Gam):
-    h, k, l = hkl
-    a_, b_, c_ = a_b_c_numba(L, Gam)
-    G_vector = h * a_ + k * b_ + l * c_
-    return np.dot(G_vector, G_vector)
-
-@njit
-def generate_hkls(lamb:float, max_index:int, unit_params:np.array, unit_angles:np.array
-                  )->Tuple[np.array,np.array,np.array,np.array]:
-    """
-    Generate HKL planes and calculate diffraction angles.
-    
-    Args:
-        lamb: Wavelength in Ångströms
-        max_index: Maximum Miller index to consider
-        unit_params: (a, b, c) lattice parameters
-        unit_angles: (alpha, beta, gamma) lattice angles in degrees
-        
-    Returns:
-        Tuple of:
-        - HKLS: Array of [h,k,l] indices
-        - Counts: Multiplicity of each reflection
-        - theta: Bragg angles (radians)
-        - Gs: |G|^2 values
-    """
-    max_planes = (2 * max_index + 1) ** 3
-    HKLS = np.empty((max_planes, 3), dtype=np.int32)
-    Counts = np.zeros(max_planes, dtype=np.int32)
-    theta = np.zeros(max_planes)
-    Gs = np.zeros(max_planes)
-    used_angles = np.zeros(max_planes)
-
-    counter = 0
-    for h in range(-max_index, max_index + 1):
-        for k in range(-max_index, max_index + 1):
-            for l in range(-max_index, max_index + 1):
-                if h == 0 and k == 0 and l == 0:
-                    continue
-                G_ = Ghkl_numba((h, k, l), unit_params, unit_angles)
-                G = np.sqrt(np.abs(G_))
-                sintheta = lamb * G / 2
-                if sintheta >= 1:
-                    continue
-
-                angle_2theta = 2 * np.degrees(np.arcsin(sintheta))
-                if angle_2theta < 5:
-                    continue
-
-                already_stored = False
-                for i in range(counter):
-                    if np.abs(theta[i] * 2 - angle_2theta) < 0.01:
-                        Counts[i] += 1
-                        if np.abs(h) + np.abs(k) + np.abs(l) < np.abs(HKLS[i][0]) + np.abs(HKLS[i][1]) + np.abs(HKLS[i][2]):
-                            HKLS[i][0], HKLS[i][1], HKLS[i][2] = h, k, l
-                        already_stored = True
-                        break
-
-                if not already_stored:
-                    HKLS[counter][0] = h
-                    HKLS[counter][1] = k
-                    HKLS[counter][2] = l
-                    Counts[counter] = 1
-                    theta[counter] = angle_2theta / 2
-                    Gs[counter] = G_
-                    counter += 1
-
-    return HKLS[:counter], Counts[:counter], theta[:counter], Gs[:counter]
-
-#===================================================================================================
-
-
-def fhlk(Z:List,ai:List,bi:List,ci:List,thetas:List,lamb:float)->List:
-    """
-    used based on the cristallography book
-    Calculate atomic scattering factor f(s) for an atom.
-    
-    f(s) = Z - 41.78214 * s^2 * sum(a_i * exp(-b_i * s^2)) + c
-    
-    where s = sin(theta)/lambda = |G|/2
-    """
-    f_all = []
-    s2 = (np.sin(np.radians(thetas))/lamb )**2#Gs/(2)**2
-
-    for i in range(len(ai)):
-        f0 = 0 
-        for j in range(len(ai[i])):
-            f0 = f0 + ai[i][j]*np.exp( - bi[i][j] * (s2) )
-        f_all.append(Z[i] - 41.78214 * (s2) * f0  + ci[i])
-
-    return f_all
-
-def fhlk2(Z:List,ai:List,bi:List,ci:List,thetas:List,lamb:float)->List:
-    """
-    Calculate atomic scattering factor f(s) for an atom.
-    
-    f(s) = sum(a_i * exp(-b_i * s^2)) + c
-    
-    where s = sin(theta)/lambda = |G|/2
-    
-    Not based on the book
-    """
-    f_all = []
-    s2 = (np.sin(np.radians(thetas))/lamb )**2 #Gs/(2)**2
-
-    for i in range(len(ai)):
-        f0 = 0 
-        for j in range(len(ai[i])):
-            f0 = f0 + ai[i][j]*np.exp( - bi[i][j] * (s2) )
-        f_all.append( f0  + ci[i])
-
-    return f_all    
-
-def Lp(theta:List)->np.array:
-    """Calculate Lorentz polarization correction factor."""
-    theta = np.radians(theta)
-
-    return (1 + ( np.cos(2*theta) )**2 )/( np.sin(theta)**2 * np.cos(theta) )
-
-
-def FhklBTphkl(hkls:List, thetas:np.array, Pos:np.array, fs:List, lamb:float,
-                L:np.array, Gamm:np.array, BT:List, counts:np.array)->np.array:
-    """
-    Calculate structure factors F_hkl for all hkl planes.
-    
-    Args:
-        hkls: Array of Miller indices (h,k,l)
-        thetas: Scattering angles for each hkl
-        Pos: List of atomic positions (fractional coordinates)
-        Z: Atomic numbers
-        ai, bi, ci: Atomic scattering parameters
-        lamb: Wavelength
-        L: Unit cell parameters [a, b, c]
-        Gamm: Unit cell angles [alpha, beta, gamma]
-        BT: Debye-Waller factors for each atom
-        counts: Multiplicity factors
-        
-    Returns:
-        Complex array of structure factors
-    """
-    F_all = [] #np.zeros(len(hkls), dtype=complex)
-    a_,b_,c_ = a_b_c_(L,Gamm)
-
-
-    for k in range(len(hkls)):
-        F = 0 + 0j
-
-        G_vector = hkls[k][0]*a_ + hkls[k][1]*b_ + hkls[k][2]*c_
-
-        s2 = (np.sin(np.radians(thetas[k]))/lamb )**2 #Gs[k]/(2)**2
-        
-        for i in range(len(Pos)):
-            Debye = (np.exp(-BT[i]* ( s2 ) ) )
-
-            for j in range(len(Pos[i])):
-
-                F += fs[i][k] * np.exp( 2j*np.pi  * ( np.dot( (Pos[i][j]) , G_vector ) ) ) #* Debye
-                
-        F_all.append( (F) ) 
-
-    return np.array(F_all) 
-
-# Get the directory of the current script
-script_dir = os.path.dirname(os.path.abspath(__file__))
-
-#Import atomic form factors factors
-data = pd.read_csv(os.path.join(script_dir, "atomic_form_factors.txt"),sep=';')
-#data = pd.read_csv(os.path.join(script_dir, "book_atomic_form_factors.txt"),sep=';')
-Elements = data['Element']
-a_1 = data['a1'].values
-a_2 = data['a2'].values
-a_3 = data['a3'].values
-a_4 = data['a4'].values
-
-b_1 = data['b1'].values
-b_2 = data['b2'].values
-b_3 = data['b3'].values
-b_4 = data['b4'].values
-
-c_1 = data['c'].values
-
-Z0 = data['Z'].values
-
-def associate_atomic_factor(Element:str)->Tuple[List,List,List,List]:
-    a = []
-    b = []
-    c = []
-    Z = []
-    for i in Element:
-        g = ((Elements==i))
-
-        a_ = []
-        a_.append(a_1[g][0])
-        a_.append(a_2[g][0])
-        a_.append(a_3[g][0])
-        a_.append(a_4[g][0])
-        a.append(a_)
-
-        b_ = []
-        b_.append(b_1[g][0])
-        b_.append(b_2[g][0])
-        b_.append(b_3[g][0])
-        b_.append(b_4[g][0])
-        b.append(b_)
-
-        c.append(c_1[g][0])
-
-        Z.append(Z0[g][0])
-
-    return a,b,c,Z
-
-
-def simulate_xrd(lamb:float, max_index:int, unit_params:np.array, unit_angles:np.array , positions:List, 
-                Base_Atoms:List) -> Dict:
-    """
-    Simulate XRD pattern for a crystal structure.
-    
-    Args:
-        lamb: Wavelength in angstroms
-        max_index: Maximum Miller index to consider
-        unit_params: [a, b, c] in angstroms
-        unit_angles: [alpha, beta, gamma] in degrees
-        positions: List of atomic positions (fractional coordinates)
-        Zs: Atomic numbers
-        a_coeffs, b_coeffs, c_coeffs: Atomic scattering parameters
-        B_factors: Debye-Waller factors for each atom
-        
-    Returns:
-        Dictionary with XRD pattern data:
-        {
-            'hkls': Miller indices,
-            'two_thetas': Diffraction angles,
-            'intensities': Calculated intensities,
-            'Gs': reciprocal distances,
-            'multiplicities': Multiplicity factors
-        }
-    """
-
-    # Calculate atomic factors
-    a_coeffs,b_coeffs,c_coeffs,Zs = associate_atomic_factor(Base_Atoms)
-
-    #import Debyw Waller Factors
-    data = pd.read_csv(os.path.join(script_dir, "Debye_Waller_factor.txt"),sep=';')#pd.read_csv('Debye_Waller_factor.txt',sep = ';')
-    ElementsB = data['Element']
-    BT = data['B (A)'].values
-
-    B_factors = [BT[ElementsB == i][0] for i in Base_Atoms]
-    # Generate possible hkl planes
-    hkls, counts, thetas, Gs = generate_hkls(lamb, max_index, (unit_params), (unit_angles)) #<--- edited here
-    fs = fhlk2(Zs,a_coeffs,b_coeffs,c_coeffs,thetas,lamb)
-    
-    # Calculate structure factors
-    F_hkls = FhklBTphkl(hkls , thetas , positions , fs,lamb , unit_params, unit_angles,B_factors, counts  )
-    
-    # Calculate intensities
-    intensities = np.abs(F_hkls)**2*Lp(thetas)*counts 
-    
-    # Normalize to maximum intensity of 1
-    if len(intensities) == 0:
-        return {
-        'hkls': [],#[mask],
-        'two_thetas': [],#[mask],
-        'FsB': [],#[mask],
-        'intensities': [],#[mask],
-        'G': [],#[mask]), #d = 1 / Gs
-        'multiplicities': [],#[mask],
-        'Lp':[],#[mask]),
-        'fhkls':[],
-        'Zs':[]
-        }
-
-    intensities = 100 * intensities / (np.max(intensities)+1e-10 )
-
-    
-    return {
-        'hkls': hkls[intensities >=2],#[mask],
-        'two_thetas': 2*np.array(thetas)[intensities >=2],#[mask],
-        'FsB':F_hkls[intensities >=2],#[mask],
-        'intensities': intensities[intensities >=2],#[mask],
-        'G': np.sqrt(Gs[intensities >=2]),#[mask]), #d = 1 / Gs
-        'multiplicities': counts[intensities >=2],#[mask],
-        'Lp':Lp(thetas[intensities >=2]),#[mask]),
-        'fhkls':fs,
-        'Zs':Zs
-    }
-
-def Intensid_xrd(lamb:float, hkls:List,thetas:List,counts:List, unit_params:np.array, unit_angles:np.array ,
-                  positions:List, Base_Atoms:List)->Dict:
-    """
-    Simulate XRD pattern for a crystal structure.
-    
-    Args:
-        lamb: Wavelength in angstroms
-        max_index: Maximum Miller index to consider
-        unit_params: [a, b, c] in angstroms
-        unit_angles: [alpha, beta, gamma] in degrees
-        positions: List of atomic positions (fractional coordinates)
-        Zs: Atomic numbers
-        a_coeffs, b_coeffs, c_coeffs: Atomic scattering parameters
-        B_factors: Debye-Waller factors for each atom
-        
-    Returns:
-        Dictionary with XRD pattern data:
-        {
-            'hkls': Miller indices,
-            'two_thetas': Diffraction angles,
-            'intensities': Calculated intensities,
-            'Gs': reciprocal distances,
-            'multiplicities': Multiplicity factors
-        }
-    """
-
-    # Calculate atomic factors
-    a_coeffs,b_coeffs,c_coeffs,Zs = associate_atomic_factor(Base_Atoms)
-
-    #import Debyw Waller Factors
-    data = pd.read_csv(os.path.join(script_dir, "Debye_Waller_factor.txt"),sep=';')#pd.read_csv('Debye_Waller_factor.txt',sep = ';')
-    ElementsB = data['Element']
-    BT = data['B (A)'].values
-
-    B_factors = [BT[ElementsB == i][0] for i in Base_Atoms]
-    # Generate possible hkl planes
-    fs = fhlk2(Zs,a_coeffs,b_coeffs,c_coeffs,thetas,lamb)
-    
-    # Calculate structure factors
-    F_hkls = FhklBTphkl(hkls , thetas , positions , fs,lamb , unit_params, unit_angles,B_factors, counts  )
-    
-    # Calculate intensities
-    intensities = np.abs(F_hkls)**2*Lp(thetas)*counts 
-    
-    # Normalize to maximum intensity of 1
-    if len(intensities) == 0 or np.max(intensities)==0:
-        return {
-        'hkls': [],#[mask],
-        'two_thetas': [],#[mask],
-        'FsB': [],#[mask],
-        'intensities': [],#[mask],
-        'multiplicities': [],#[mask],
-        'Lp':[],#[mask]),
-        'fhkls':[],
-        'Zs':[]
-        }
-
-    intensities = 100 * intensities / (np.max(intensities)+1e-10)
-
-    
-    return {
-        'hkls': hkls[intensities >=2],#[mask],
-        'two_thetas': 2*thetas[intensities >=2],#[mask],
-        'FsB':F_hkls[intensities >=2],#[mask],
-        'intensities': intensities[intensities >=2],#[mask],
-        'multiplicities': counts[intensities >=2],#[mask],
-        'Lp':Lp(thetas[intensities >=2]),#[mask]),
-        'fhkls':fs,
-        'Zs':Zs
-    }
-
-def Normalize(data:List, max=1)->List:
-    # Check if it's a single list (not nested)
-    if all(isinstance(i, (int, float)) for i in data):
-        # Process the single list
-        return [
-            x - max if x > max else (x + 1 if x < 0 else x)
-            for x in data
-        ]
-    else:
-        # Process each sublist in the nested list
-        return [
-            [x - max if x > max else (x + 1 if x < 0 else x) for x in sublist]
-            for sublist in data
-        ]
-
-
-def find_atoms_unit_cell(Pos_atoms:List, unit_params:List, unit_angles:List,
-                          Symmetry:List, units=[1, 1, 1], hex=False)->List:
-    """
-    Expands the unit cell to multiple repetitions along each axis.
-
-    Parameters:
-        Pos_atoms (list): List of atomic positions in fractional coordinates.
-        unit_params (list): Lattice parameters [a, b, c].
-        unit_angles (list): Lattice angles [alpha, beta, gamma].
-        Symmetry (list): List of symmetry operations.
-        units (list, optional): Number of unit cells along [x, y, z]. Default is [1,1,1].
-        hex (bool, optional): If True, applies a specific hexagonal expansion.
-
-    Returns:
-        tuple: (POS_unit, POS_tot) - Atomic positions expanded within the unit cell and full expanded positions.
-    """
-
-    # Step 1: Apply symmetry operations and normalize atomic positions
-    POS_primit = [
-        list({tuple(np.round(h, 3)) for pos in atom_list for h in (POS(pos, Symmetry))})
-        for atom_list in Pos_atoms
-    ]
-
-    ppos_primit = [
-        [ h
-            for pos in atom_list
-            for h in POS(pos, Symmetry)
-        ]  for atom_list in Pos_atoms    ]
-    
-    primit = []
-    for i in range(len(ppos_primit)):
-        pp = []
-        verif = []
-        for j in range(len(ppos_primit[i])):
-            vec = Normalize(ppos_primit[i][j])
-            if 0 <= vec[0] < 1 and 0 <= vec[1] < 1 and 0 <= vec[2] < 1:
-                cart = tuple(np.round(abcToxyz(vec, unit_params, unit_angles) ,2))
-                if cart not in verif:
-                    verif.append(cart)
-                    pp.append(abcToxyz(vec, unit_params, unit_angles))
-        primit.append(pp)
-
-
-    # Step 2: Define unit cell boundaries and displacement vectors
-    if hex:
-        a, b, c = units
-        vertices = np.array([
-            [ a/2, -b/2 * np.sqrt(3), 0], [ a, 0, 0], [ a/2, b/2 * np.sqrt(3), 0],
-            [-a/2, b/2 * np.sqrt(3), 0], [-a, 0, 0], [-a/2, -b/2 * np.sqrt(3), 0],
-            [ a/2, -b/2 * np.sqrt(3), c], [ a, 0, c], [ a/2, b/2 * np.sqrt(3), c],
-            [-a/2, b/2 * np.sqrt(3), c], [-a, 0, c], [-a/2, -b/2 * np.sqrt(3), c]
-        ])
-        x_min, y_min, z_min = np.min(vertices, axis=0)
-        x0_min,y0_min,z0_min = x_min,y_min,z_min
-        x_max, y_max, z_max = np.max(vertices, axis=0)
-        x0_max,y0_max,z0_max = x_max,y_max,z_max
-        d = np.array([[dx, dy, dz] for dx in range(-a, a+1) for dy in range(-b, b+1) for dz in range(-c, c+1)])
-    else:
-        x_min, y_min, z_min, x_max, y_max, z_max = 0, 0, 0, units[0], units[1], units[2]
-        x0_min, y0_min, z0_min = 0, 0, 0
-        x0_max, y0_max, z0_max = 1, 1, 1
-        d = np.array([[dx, dy, dz] for dx in range(x_min,units[0]+1) for dy in range(y_min,units[1]+1) for dz in range(z_min,units[2]+1)])
-
-    # Step 3: Expand atomic positions across unit cells
-    POS_tot, POS_unit = [], []
-    
-    for i in range(len(POS_primit)):
-        # Use sets to store unique atomic positions
-        tot_p_set = set()
-        unit_p_set = set()
-
-        for v in d:
-            for j in range(len(POS_primit[i])):
-                r_r = np.array(POS_primit[i][j]) + np.array(v)  # Shift atomic position
-
-                if x_min <= r_r[0] <= x_max and y_min <= r_r[1] <= y_max and z_min <= r_r[2] <= z_max:
-                    aa = tuple(np.round(abcToxyz(r_r, unit_params, unit_angles), 3))  # Convert to tuple
-
-                    tot_p_set.add(aa)  # Set automatically removes duplicates
-
-                    if x0_min <= r_r[0] <= x0_max and y0_min <= r_r[1] <= y0_max and z0_min <= r_r[2] <= z0_max:
-                        unit_p_set.add(aa)
-
-        # Convert sets back to lists
-        POS_tot.append(list(tot_p_set))
-        POS_unit.append(list(unit_p_set))
-
-    return primit,POS_unit,POS_tot
 # To plot only determined region on space
 def Deliminator( Pos , limitsx=[0,25],limitsy=[0,25],limitsz=[5,26]):
+    """Function to apply boundaries to an array, giving the formation I generate where we have a full array for each atom.
+
+    Args:
+        Pos: Array of atomic positions, having size of (N,n_N) being N the number of atoms and n_N the number of positions each atom has.
+        limitsx: The boundaries we apply in the x (a*) axis (could be in the reciprocal or cartesian coordiantes, it only depends on the array coordiantes).
+        limitsy: The boundaries we apply in the y (b*) axis (could be in the reciprocal or cartesian coordiantes, it only depends on the array coordiantes).
+        limitsz: The boundaries we apply in the z (c*) axis (could be in the reciprocal or cartesian coordiantes, it only depends on the array coordiantes).
+
+    Returns:
+        Array of atomic positions with boundaries applied.
+    """
     #Lets walk around the the list and see when we have points inside the region
     POS = []
 
@@ -905,14 +1043,35 @@ def Deliminator( Pos , limitsx=[0,25],limitsy=[0,25],limitsz=[5,26]):
 
 
 # To do some beautiful plots
-def Plot_Planes(ax,vector,L,Gamm, num_planes = 1 , xs = [-1,5] , ys =[-1,5] , zs =[-0.5,21] ,color = 'red',alpha = 0.3,PLOT_SURF=True):
-    """
-    Plots a plane perpendicular to a given vector in 3D space.
+def Plot_Planes(ax,vector,L,Gamm, num_planes = 1 ,
+                 xs = [-1,5] , ys =[-1,5] , zs =[-0.5,21] ,
+                 color = 'red',alpha = 0.3,
+                 PLOT_SURF=True, Limits = False, Positions = None):
+    """Plots a plane perpendicular to a given Miller Index.
 
-    Parameters:
-        vector (list or tuple): The normal vector to the plane (a, b, c).
-        plane_size (float): The size of the plane grid to be plotted.
+    Args:
+        ax: Matplotlib 3D axis object to plot on.
+        vector: The Miller Index of the plane desired.
+        L: Unit cell parameters (a,b,c).
+        Gamm: Unit cell angles (alpha,beta,gamma).
+        num_planes: Number of planes that we are gonna plot/ define.
+        xs: Limit of the x axis.
+        ys: Limit of the y axis.
+        zs: Limit of the z axis.
+        color: Color of the plane it will plot.
+        alpha: The transparency of the plane.
+        PLOT_SURF: If True the surface will be ploted, if FALSE, it will not plot.
+        Limits: If TRUE it will calculate the limitis to used based on the atomic positions, if FALSE it will use the giving limits.
+        Positions: Atomic Positions.
+
+    Returns:
+        The surface Grids used for the plot and that can be used to plot the atos in each plane using the 'plot_points_on_surface'.
+
     """
+    if Limits:
+        xs = [arr[0] for sublista in Positions for arr in sublista]
+        ys = [arr[1] for sublista in Positions for arr in sublista]
+        zs = [arr[2] for sublista in Positions for arr in sublista]
 
     x_min,y_min,z_min = -num_planes *max(xs), -num_planes *max(ys), -num_planes *max(zs)
     x_max,y_max,z_max = num_planes * max(xs), num_planes *max(ys), max(zs)
@@ -1108,12 +1267,19 @@ def Plot_Planes(ax,vector,L,Gamm, num_planes = 1 , xs = [-1,5] , ys =[-1,5] , zs
 
 
 def plot_points_on_surface(ax,points, Xs,Ys,Zs,Z0 ,colors = 'red',threshold = 0.4):
-    """
-    Plots points on a surface.
+    """Plots points on a surface.
 
     Args:
-        points: A list of points to plot.
-        surface_points: A list of points defining the surface.
+        ax: Matplotlib 3D axis object to plot on.
+        points: Atomic Positions of one Element.
+        Xs: The X coordinates Grid of points in the plane.
+        Ys: The Y coordinates Grid of points in the plane.
+        Zs: The Z coordinates Grid of points in the plane.
+        colors: Color used in the plot.
+        threshold: Limit distance between a surface point an atom position to be considered in it.
+
+    Returns:
+        Plot of the points in the surface.
     """
     for i in range(len(Xs)):
         X = Xs[i]#+=v[0]
@@ -1135,15 +1301,14 @@ def plot_points_on_surface(ax,points, Xs,Ys,Zs,Z0 ,colors = 'red',threshold = 0.
             ax.scatter(filtered_points[j][0] ,filtered_points[j][1],filtered_points[j][2] , color=colors,s=Z0)
 
 def UNIT_CELL_PLOT(ax, L, Gamm, units=[1, 1, 1], xyz=True):
-    """
-    Plots a 3D visualization of multiple unit cells based on the given dimensions.
+    """Plots a 3D visualization of multiple unit cells based on the given dimensions.
 
-    Parameters:
+    Args:
         ax: Matplotlib 3D axis object to plot on.
-        L (list): Lattice parameters [a, b, c].
-        Gamm (list): Lattice angles [alpha, beta, gamma].
-        units (list, optional): Number of unit cells along [x, y, z]. Default is [1, 1, 1].
-        xyz (bool, optional): If True, converts fractional coordinates to Cartesian.
+        L: Lattice parameters [a, b, c].
+        Gamm: Lattice angles [alpha, beta, gamma].
+        units: Number of unit cells along [x, y, z]. Default is [1, 1, 1].
+        xyz: If True, converts fractional coordinates to Cartesian.
     """
     # Define the vertices of a unit cell at the origin
     vertices = np.array([
@@ -1175,14 +1340,16 @@ def UNIT_CELL_PLOT(ax, L, Gamm, units=[1, 1, 1], xyz=True):
 
 
 def UNIT_CELL_PLOT_HEXAGON(ax, L, Gamm, xyz=True):
-    """
-    Plots a centered hexagonal unit cell (hexagonal prism) in 3D.
+    """Plots a centered hexagonal unit cell (hexagonal prism) in 3D.
 
-    Parameters:
-    - ax: Matplotlib 3D axis
-    - L: Lengths of the unit cell (a, b, c)
-    - Gamm: Angles of the unit cell (alpha, beta, gamma) in degrees
-    - xyz: If True, converts lattice points using abcToxyz function; otherwise uses Cartesian coordinates.
+    Args:
+        ax: Matplotlib 3D axis object to plot on.
+        L: Lengths of the unit cell (a, b, c)
+        Gamm: Angles of the unit cell (alpha, beta, gamma) in degrees
+        xyz: If True, converts lattice points using abcToxyz function; otherwise uses Cartesian coordinates.
+
+    Returns:
+        Plot of Hexagonal unit Cell.
     """
     a, b, c = [1,1,1]  # Lattice parameters
     # Define the vertices of a centered hexagonal prism
@@ -1229,8 +1396,18 @@ def UNIT_CELL_PLOT_HEXAGON(ax, L, Gamm, xyz=True):
             p1, p2 = vertices[edge[0]], vertices[edge[1]]
             ax.plot([p1[0], p2[0]], [p1[1], p2[1]], [p1[2], p2[2]], color='gray')
 
-# Convert Full list
+# Convert Full list 
 def ConvertToabc(pos,L,Gamm):
+    """Convet an array used from cartesian coordiantes to fractional coordiantes.
+
+    Args:
+        pos: Array of the atomic positions.
+        L: Unit cell Lenghts (a,b,c).
+        Gamm: Unit cell angles (alpha,beta,gamma) in degrees.
+
+    Returns:
+        The atomic positions array in fractional coordiantes
+    """
 
     pos_abc = []
     for i in range(len(pos)):
@@ -1241,6 +1418,16 @@ def ConvertToabc(pos,L,Gamm):
     return pos_abc
 
 def ConvertToxyz(pos,L,Gamm):
+    """Convet an array used from fractional coordiantes to cartesian coordiantes.
+
+    Args:
+        pos: Array of the atomic positions.
+        L: Unit cell Lenghts (a,b,c).
+        Gamm: Unit cell angles (alpha,beta,gamma) in degrees.
+
+    Returns:
+        The atomic positions array in cartesian coordiantes
+    """
 
     pos_xyz = []
     for i in range(len(pos)):
